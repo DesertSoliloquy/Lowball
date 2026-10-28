@@ -1,5 +1,6 @@
 package lowball.engine
 
+import kotlinx.serialization.Serializable
 import kotlin.random.Random
 
 /** Card ranks. In lowball the Ace is always the lowest card, so it has value 1. */
@@ -39,6 +40,7 @@ enum class Suit(val code: Char, val displayName: String) {
  * One playing card. The joker has no rank or suit.
  * [code] matches the image file names: "3d" for the three of diamonds, "joker" for the joker.
  */
+@Serializable
 data class Card(val rank: Rank?, val suit: Suit?) {
     val isJoker: Boolean get() = rank == null
 

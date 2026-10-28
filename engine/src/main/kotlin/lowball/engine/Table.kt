@@ -1,7 +1,9 @@
 package lowball.engine
 
+import kotlinx.serialization.Serializable
 import kotlin.random.Random
 
+@Serializable
 enum class Phase {
     /** Players short of the ante choose to sell something or sit out. */
     ANTE,
@@ -32,6 +34,7 @@ sealed class Action(val type: ActionType) {
 }
 
 /** What happened when a round ended. */
+@Serializable
 data class RoundResult(
     val pot: Int,
     val winners: List<Int>,
@@ -48,6 +51,7 @@ data class RoundResult(
 }
 
 /** One line of the table's running commentary, e.g. "Whiskey Pete raises to $200". */
+@Serializable
 data class Event(val seat: Int?, val text: String)
 
 /**
@@ -213,6 +217,48 @@ class Table(
         }
     }
 
+    /** Everything needed to carry on this game later. */
+    fun snapshot(): TableSnapshot = TableSnapshot(
+        difficulty = difficulty,
+        players = players.map {
+            PlayerSnapshot(
+                it.seat, it.name, it.isHuman, it.chips, it.items.toList(), it.loans.map { l -> l.copy() },
+                it.hand.toList(), it.folded, it.eliminated, it.cardsDrawn, it.snowing,
+            )
+        },
+        dealer = dealer,
+        phase = phase,
+        toAct = toAct,
+        pot = pot,
+        roundNumber = roundNumber,
+        currentBet = currentBet,
+        betsMade = betsMade,
+        contributed = contributed.toList(),
+        backImage = backImage,
+        lastResult = lastResult,
+        events = events.toList(),
+        pending = pending.toList(),
+        queue = queue.toList(),
+        deck = deck.snapshot(),
+    )
+
+    private fun restore(s: TableSnapshot) {
+        dealer = s.dealer
+        phase = s.phase
+        toAct = s.toAct
+        pot = s.pot
+        roundNumber = s.roundNumber
+        currentBet = s.currentBet
+        betsMade = s.betsMade
+        s.contributed.forEachIndexed { i, amount -> contributed[i] = amount }
+        backImage = s.backImage
+        lastResult = s.lastResult
+        events.addAll(s.events)
+        pending.addAll(s.pending)
+        queue.addAll(s.queue)
+        deck.restore(s.deck)
+    }
+
     private fun payAnte(p: Player) {
         p.chips -= ANTE
         pot += ANTE
@@ -341,6 +387,22 @@ class Table(
         const val HAND_SIZE = 5
         const val MAX_DISCARDS = 3
         const val LOAN_REPAYMENT_PERCENT = 10
+
+        /** Rebuilds a game saved with [snapshot]. */
+        fun fromSnapshot(s: TableSnapshot, random: Random = Random.Default, images: CardImages? = null): Table {
+            val players = s.players.map { ps ->
+                Player(ps.seat, ps.name, ps.isHuman, ps.chips).apply {
+                    items.clear(); items.addAll(ps.items)
+                    loans.addAll(ps.loans)
+                    hand.addAll(ps.hand)
+                    folded = ps.folded
+                    eliminated = ps.eliminated
+                    cardsDrawn = ps.cardsDrawn
+                    snowing = ps.snowing
+                }
+            }
+            return Table(players, s.difficulty, random, images).also { it.restore(s) }
+        }
 
         /** Seat 0 is the human; opponents get random names from [OpponentNames]. */
         fun newGame(

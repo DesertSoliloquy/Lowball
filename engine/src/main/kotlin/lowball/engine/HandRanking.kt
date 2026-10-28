@@ -1,9 +1,12 @@
 package lowball.engine
 
+import kotlinx.serialization.Serializable
+
 /**
  * How bad a hand is, from the lowball point of view. Lower categories win.
  * Straights and flushes don't exist in California Lowball.
  */
+@Serializable
 enum class Category(val displayName: String) {
     NO_PAIR("No pair"),
     ONE_PAIR("One pair"),
@@ -19,6 +22,7 @@ enum class Category(val displayName: String) {
  * [ranks] are the rank values the hand plays as, with the joker already replaced,
  * ordered for comparison: groups first (biggest group, then highest rank), then single cards high to low.
  */
+@Serializable
 data class LowHand(val category: Category, val ranks: List<Int>) : Comparable<LowHand> {
 
     override fun compareTo(other: LowHand): Int {

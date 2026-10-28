@@ -1,8 +1,10 @@
 package lowball.engine
 
+import kotlinx.serialization.Serializable
 import kotlin.random.Random
 
 /** Belongings the house will buy from a player who is short of money, most valuable first. */
+@Serializable
 enum class Item(val displayName: String, val price: Int) {
     GOLD_WATCH("Gold watch", 1_000),
     WEDDING_RING("Wedding ring", 750),
@@ -25,11 +27,14 @@ enum class Item(val displayName: String, val price: Int) {
 }
 
 /** An item the house is holding. [balance] is what the player still owes before it comes back. */
+@Serializable
 data class Loan(val item: Item, val amount: Int, var balance: Int)
 
+@Serializable
 enum class Difficulty { EASY, MEDIUM, HARD }
 
 /** A card in a player's hand together with the picture chosen for it this round. */
+@Serializable
 data class DealtCard(val card: Card, val image: String?)
 
 class Player(
