@@ -163,7 +163,8 @@ private val HOW_TO = listOf(
         "3. First betting round.\n" +
         "4. The draw: stand pat, or throw away up to three cards and get new ones.\n" +
         "5. Second betting round.\n" +
-        "6. Showdown: everyone still in shows their cards and the lowest hand takes the pot.",
+        "6. Showdown: everyone still in shows their cards and the lowest hand takes the pot, less the house rake " +
+            "of 2% (never more than \$3).",
     "Betting" to
         "You can bet or raise \$25, \$50, \$75 or \$100. Each betting round allows one bet and up to three raises. " +
         "Check means pass without betting. Call means match the bet. Fold means give up the hand.",

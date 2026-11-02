@@ -50,6 +50,8 @@ data class RoundResult(
     val loanPayments: Map<Int, Int>,
     /** Belongings returned when a loan was paid off, by seat. */
     val itemsReturned: Map<Int, List<Item>>,
+    /** The house's cut of the pot, taken before the winners are paid. */
+    val rake: Int = 0,
 ) {
     val uncontested: Boolean get() = shownHands.isEmpty()
 }
@@ -360,11 +362,14 @@ class Table(
 
     private fun finishRound(winners: List<Int>, shownHands: Map<Int, LowHand>) {
         val shares = mutableMapOf<Int, Int>()
+        val rake = if (winners.isEmpty()) 0 else minOf(pot * RAKE_PERCENT / 100, MAX_RAKE)
+        if (rake > 0) log(null, "The house takes a $$rake rake")
+        val prize = pot - rake
         if (winners.isNotEmpty()) {
-            val each = pot / winners.size
+            val each = prize / winners.size
             winners.forEach { shares[it] = each }
             // An odd dollar goes to the first winner left of the dealer.
-            shares[winners.first()] = each + pot % winners.size
+            shares[winners.first()] = each + prize % winners.size
         }
         val payments = mutableMapOf<Int, Int>()
         val returned = mutableMapOf<Int, List<Item>>()
@@ -381,7 +386,7 @@ class Table(
             val how = shownHands[seat]?.let { " with ${it.describe()}" } ?: ""
             log(seat, p.says("win", "wins") + " $$share$how")
         }
-        lastResult = RoundResult(pot, winners, shares, shownHands, payments, returned)
+        lastResult = RoundResult(pot, winners, shares, shownHands, payments, returned, rake)
         pot = 0
         toAct = null
         phase = Phase.ROUND_OVER
@@ -413,6 +418,10 @@ class Table(
         const val HAND_SIZE = 5
         const val MAX_DISCARDS = 3
         const val LOAN_REPAYMENT_PERCENT = 10
+
+        /** The house keeps 2% of every pot, never more than $3, as a casino would. */
+        const val RAKE_PERCENT = 2
+        const val MAX_RAKE = 3
 
         /** Rebuilds a game saved with [snapshot]. */
         fun fromSnapshot(s: TableSnapshot, random: Random = Random.Default, images: CardImages? = null): Table {

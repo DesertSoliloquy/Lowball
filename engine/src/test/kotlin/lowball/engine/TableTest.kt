@@ -95,7 +95,9 @@ class TableTest {
         val result = assertNotNull(t.lastResult)
         assertTrue(result.uncontested)
         assertEquals(listOf(1), result.winners)
-        assertEquals(Table.STARTING_CHIPS + Table.ANTE, t.players[1].chips)
+        // $150 pot less the house's $3 rake.
+        assertEquals(3, result.rake)
+        assertEquals(Table.STARTING_CHIPS - Table.ANTE - 100 + 147, t.players[1].chips)
     }
 
     @Test
@@ -121,7 +123,9 @@ class TableTest {
         val result = assertNotNull(t.lastResult)
         val best = result.shownHands.values.min()
         result.winners.forEach { assertEquals(best, result.shownHands[it]) }
-        assertEquals(3 * Table.ANTE, result.shares.values.sum())
+        // A $75 pot: the house takes 2%, rounded down to $1.
+        assertEquals(1, result.rake)
+        assertEquals(3 * Table.ANTE - 1, result.shares.values.sum())
     }
 
     @Test

@@ -437,10 +437,11 @@ private fun resultText(view: TableSnapshot): String {
     val lines = mutableListOf<String>()
     lines += when {
         names.isEmpty() -> "Nobody played this round."
-        names.size == 1 && result.uncontested -> "${names[0]} ${wins(view, result.winners[0])} ${money(result.pot)}. Everyone else folded."
-        names.size == 1 -> "${names[0]} ${wins(view, result.winners[0])} ${money(result.pot)} with ${result.shownHands[result.winners[0]]!!.describe()}."
-        else -> "${names.joinToString(" and ")} split ${money(result.pot)}."
+        names.size == 1 && result.uncontested -> "${names[0]} ${wins(view, result.winners[0])} ${money(result.pot - result.rake)}. Everyone else folded."
+        names.size == 1 -> "${names[0]} ${wins(view, result.winners[0])} ${money(result.pot - result.rake)} with ${result.shownHands[result.winners[0]]!!.describe()}."
+        else -> "${names.joinToString(" and ")} split ${money(result.pot - result.rake)}."
     }
+    if (result.rake > 0) lines += "The house kept ${money(result.rake)} as its rake."
     for ((seat, paid) in result.loanPayments) {
         lines += "${view.players[seat].name} paid the house ${money(paid)} toward loans."
     }
