@@ -5,9 +5,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -36,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.desertsoliloquy.lowball.GameViewModel
 import kotlinx.coroutines.delay
@@ -66,50 +69,56 @@ fun TableScreen(game: GameViewModel, modifier: Modifier) {
         }
     }
 
-    Column(modifier.background(colors.felt)) {
-        TopBar(
-            view = view,
-            onSave = game::saveGame,
-            onVault = { showVault = true },
-            onHowTo = game::showHowTo,
-            onTheme = game::cycleTheme,
-            onQuit = { confirmQuit = true },
-        )
+    BoxWithConstraints(modifier.background(colors.felt)) {
+        // Cards grow with the screen: five of yours fill the width, opponents' take a bit over half.
+        val handCard = ((maxWidth - 56.dp) / 5).coerceAtMost(200.dp)
+        val opponentCard = ((maxWidth * 0.6f - 24.dp) / 5).coerceAtMost(120.dp)
+        Column(Modifier.fillMaxSize()) {
+            TopBar(
+                view = view,
+                onSave = game::saveGame,
+                onVault = { showVault = true },
+                onHowTo = game::showHowTo,
+                onTheme = game::cycleTheme,
+                onQuit = { confirmQuit = true },
+            )
 
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            for (p in view.players.filter { !it.isHuman }) {
-                OpponentRow(p, view)
-            }
-            PotAndNews(view, game.notice)
-        }
-
-        HumanArea(
-            view = view,
-            discards = discards,
-            onToggle = { i ->
-                discards = when {
-                    i in discards -> discards - i
-                    discards.size < Table.MAX_DISCARDS -> discards + i
-                    else -> discards
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (p in view.players.filter { !it.isHuman }) {
+                    OpponentRow(p, view, opponentCard)
                 }
-            },
-        )
+                PotAndNews(view, game.notice)
+            }
 
-        ActionBar(
-            view = view,
-            legal = game.legal,
-            discards = discards,
-            onAction = { action ->
-                if (action is Action.Draw) discards = emptySet()
-                game.play(action)
-            },
-            onSell = { showSell = true },
-            onNextRound = game::nextRound,
-            onNewGame = game::quitToMenu,
-        )
+            HumanArea(
+                view = view,
+                cardWidth = handCard,
+                discards = discards,
+                onToggle = { i ->
+                    discards = when {
+                        i in discards -> discards - i
+                        discards.size < Table.MAX_DISCARDS -> discards + i
+                        else -> discards
+                    }
+                },
+            )
+
+            ActionBar(
+                view = view,
+                legal = game.legal,
+                discards = discards,
+                onAction = { action ->
+                    if (action is Action.Draw) discards = emptySet()
+                    game.play(action)
+                },
+                onSell = { showSell = true },
+                onNextRound = game::nextRound,
+                onNewGame = game::quitToMenu,
+            )
+        }
     }
 
     if (showVault) VaultDialog(view) { showVault = false }
@@ -177,7 +186,7 @@ private fun TopBar(
 }
 
 @Composable
-private fun OpponentRow(p: PlayerSnapshot, view: TableSnapshot) {
+private fun OpponentRow(p: PlayerSnapshot, view: TableSnapshot, cardWidth: Dp) {
     val colors = LocalTableColors.current
     val showdown = view.phase == Phase.ROUND_OVER && view.lastResult?.shownHands?.containsKey(p.seat) == true
     val acting = view.toAct == p.seat
@@ -206,7 +215,7 @@ private fun OpponentRow(p: PlayerSnapshot, view: TableSnapshot) {
         if (p.hand.isNotEmpty() && !p.folded) {
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 for (dealt in p.hand) {
-                    if (showdown) CardFace(dealt.card, dealt.image, 32.dp) else CardBack(view.backImage, 32.dp)
+                    if (showdown) CardFace(dealt.card, dealt.image, cardWidth) else CardBack(view.backImage, cardWidth)
                 }
             }
         }
@@ -255,7 +264,7 @@ private fun PotAndNews(view: TableSnapshot, notice: String?) {
 }
 
 @Composable
-private fun HumanArea(view: TableSnapshot, discards: Set<Int>, onToggle: (Int) -> Unit) {
+private fun HumanArea(view: TableSnapshot, cardWidth: Dp, discards: Set<Int>, onToggle: (Int) -> Unit) {
     val colors = LocalTableColors.current
     val me = view.players.first { it.isHuman }
     val drawing = view.phase == Phase.DRAW && view.toAct == me.seat
@@ -278,15 +287,15 @@ private fun HumanArea(view: TableSnapshot, discards: Set<Int>, onToggle: (Int) -
             val myHand = lowball.engine.HandEvaluator.evaluate(me.hand.map { it.card })
             Text(myHand.describe(), color = colors.highlight, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 me.hand.forEachIndexed { i, dealt ->
                     val picked = i in discards
                     CardFace(
                         dealt.card,
                         dealt.image,
-                        64.dp,
+                        cardWidth,
                         Modifier
-                            .offset(y = if (picked) (-14).dp else 0.dp)
+                            .offset(y = if (picked) -(cardWidth / 5) else 0.dp)
                             .border(3.dp, if (picked) colors.highlight else Color.Transparent, RoundedCornerShape(6.dp))
                             .clickable(enabled = drawing) { onToggle(i) },
                     )
@@ -358,23 +367,32 @@ private fun ActionBar(
                     if (ActionType.CHECK in legal) {
                         Button(onClick = { onAction(Action.Check) }, modifier = Modifier.weight(1f)) { Text("Check") }
                     }
-                    if (ActionType.BET in legal) {
-                        Button(onClick = { onAction(Action.Bet) }, modifier = Modifier.weight(1f)) {
-                            Text("Bet ${money(Table.BET_SIZE)}")
-                        }
-                    }
                     if (ActionType.CALL in legal) {
                         Button(onClick = { onAction(Action.Call) }, modifier = Modifier.weight(1f)) {
                             Text("Call ${money(toCall)}")
                         }
                     }
-                    if (ActionType.RAISE in legal) {
-                        Button(onClick = { onAction(Action.Raise) }, modifier = Modifier.weight(1f)) {
-                            Text("Raise to ${money(view.currentBet + Table.BET_SIZE)}")
-                        }
-                    }
                     if (ActionType.FOLD in legal) {
                         OutlinedButton(onClick = { onAction(Action.Fold) }, modifier = Modifier.weight(1f)) { Text("Fold") }
+                    }
+                }
+                val betting = ActionType.BET in legal
+                if (betting || ActionType.RAISE in legal) {
+                    Text(
+                        if (betting) "Bet" else "Raise by",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (amount in Table.WAGERS) {
+                            Button(
+                                onClick = { onAction(if (betting) Action.Bet(amount) else Action.Raise(amount)) },
+                                enabled = me.chips >= toCall + amount,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(money(amount))
+                            }
+                        }
                     }
                 }
                 if (ActionType.SELL in legal) {

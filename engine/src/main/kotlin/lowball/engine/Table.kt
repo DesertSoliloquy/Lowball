@@ -22,15 +22,19 @@ enum class ActionType { CHECK, BET, CALL, RAISE, FOLD, DRAW, SELL, SIT_OUT }
 
 sealed class Action(val type: ActionType) {
     data object Check : Action(ActionType.CHECK)
-    data object Bet : Action(ActionType.BET)
     data object Call : Action(ActionType.CALL)
-    data object Raise : Action(ActionType.RAISE)
     data object Fold : Action(ActionType.FOLD)
     data object SitOut : Action(ActionType.SIT_OUT)
 
     /** Throws away the cards at [discards] (positions 0 to 4). An empty set stands pat. */
     data class Draw(val discards: Set<Int>) : Action(ActionType.DRAW)
     data class Sell(val item: Item) : Action(ActionType.SELL)
+
+    /** Opens the betting with [amount]: $25, $50, $75 or $100. */
+    data class Bet(val amount: Int = Table.MAX_WAGER) : Action(ActionType.BET)
+
+    /** Calls, then adds [amount] on top: $25, $50, $75 or $100. */
+    data class Raise(val amount: Int = Table.MAX_WAGER) : Action(ActionType.RAISE)
 }
 
 /** What happened when a round ended. */
@@ -154,13 +158,13 @@ class Table(
                 buildList {
                     if (toCall == 0) {
                         add(ActionType.CHECK)
-                        if (betsMade == 0 && p.chips >= BET_SIZE) add(ActionType.BET)
+                        if (betsMade == 0 && p.chips >= MIN_WAGER) add(ActionType.BET)
                     } else {
                         if (p.chips >= toCall) add(ActionType.CALL)
-                        if (betsMade < MAX_BETS && p.chips >= toCall + BET_SIZE) add(ActionType.RAISE)
+                        if (betsMade < MAX_BETS && p.chips >= toCall + MIN_WAGER) add(ActionType.RAISE)
                         add(ActionType.FOLD)
                     }
-                    if (p.chips < toCall + BET_SIZE && p.items.isNotEmpty()) add(ActionType.SELL)
+                    if (p.chips < toCall + MAX_WAGER && p.items.isNotEmpty()) add(ActionType.SELL)
                 }
             }
             Phase.ROUND_OVER, Phase.GAME_OVER -> emptyList()
@@ -193,11 +197,14 @@ class Table(
                 pending.remove(seat)
                 afterBettingAction(seat)
             }
-            Action.Bet, Action.Raise -> {
-                pay(p, amountToCall(seat) + BET_SIZE)
-                currentBet += BET_SIZE
+            is Action.Bet, is Action.Raise -> {
+                val amount = if (action is Action.Bet) action.amount else (action as Action.Raise).amount
+                require(amount in WAGERS) { "Bets and raises are $25, $50, $75 or $100" }
+                require(p.chips >= amountToCall(seat) + amount) { "${p.name} can't afford that" }
+                pay(p, amountToCall(seat) + amount)
+                currentBet += amount
                 betsMade++
-                log(seat, if (action == Action.Bet) "${p.name} bets $$BET_SIZE" else "${p.name} raises to $$currentBet")
+                log(seat, if (action is Action.Bet) "${p.name} bets $$amount" else "${p.name} raises to $$currentBet")
                 pending.clear()
                 pending.addAll(activeSeats - seat)
                 afterBettingAction(seat)
@@ -380,7 +387,11 @@ class Table(
     companion object {
         const val STARTING_CHIPS = 5_000
         const val ANTE = 25
-        const val BET_SIZE = 100
+        const val MIN_WAGER = 25
+        const val MAX_WAGER = 100
+
+        /** The amounts a player may bet or raise by. */
+        val WAGERS = listOf(25, 50, 75, 100)
 
         /** One bet plus three raises. */
         const val MAX_BETS = 4

@@ -13,7 +13,7 @@ class SavedGameTest {
         t.human.chips = 10
         t.startRound()
         t.act(Action.Sell(Item.GOLD_WATCH))
-        t.act(Action.Bet)
+        t.act(Action.Bet())
 
         val text = SavedGame.encode(t)
         val resumed = SavedGame.decode(text)

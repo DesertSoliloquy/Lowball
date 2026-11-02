@@ -58,17 +58,27 @@ class Opponent(private val difficulty: Difficulty, private val random: Random = 
         }
 
         // Short of money for something worth doing: sell the cheapest belonging first.
-        if (ActionType.SELL in legal && p.chips < toCall + Table.BET_SIZE && (wantsToRaise || (wantsToCall && p.chips < toCall))) {
+        if (ActionType.SELL in legal && p.chips < toCall + Table.MAX_WAGER && (wantsToRaise || (wantsToCall && p.chips < toCall))) {
             return Action.Sell(p.items.last())
         }
 
         return when {
-            wantsToRaise && ActionType.BET in legal -> Action.Bet
-            wantsToRaise && ActionType.RAISE in legal -> Action.Raise
+            wantsToRaise && ActionType.BET in legal -> Action.Bet(wager(strength, p.chips))
+            wantsToRaise && ActionType.RAISE in legal -> Action.Raise(wager(strength, p.chips - toCall))
             ActionType.CHECK in legal -> Action.Check
             wantsToCall && ActionType.CALL in legal -> Action.Call
             else -> Action.Fold
         }
+    }
+
+    /** Bigger bets with better hands, a little randomness so it can't be read, never more than [canAfford]. */
+    private fun wager(strength: Double, canAfford: Int): Int {
+        val wanted = when {
+            strength >= 0.9 -> Table.MAX_WAGER
+            difficulty == Difficulty.EASY -> Table.WAGERS.random(random)
+            else -> Table.WAGERS[((strength - style.raiseAt) / (1 - style.raiseAt) * 4).toInt().coerceIn(1, 3)]
+        }
+        return Table.WAGERS.last { it <= minOf(wanted, canAfford) }
     }
 
     /** A rough 0-to-1 guess at how good this hand is against the players still in. */

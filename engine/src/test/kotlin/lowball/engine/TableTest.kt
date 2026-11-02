@@ -38,15 +38,29 @@ class TableTest {
     fun oneBetAndThreeRaisesThenOnlyCalls() {
         val t = table(opponents = 1)
         t.startRound()
-        t.act(Action.Bet) // seat 1
-        t.act(Action.Raise) // seat 0
-        t.act(Action.Raise)
-        t.act(Action.Raise)
+        t.act(Action.Bet()) // seat 1
+        t.act(Action.Raise()) // seat 0
+        t.act(Action.Raise())
+        t.act(Action.Raise())
         assertEquals(400, t.currentBet)
         assertEquals(listOf(ActionType.CALL, ActionType.FOLD), t.legalActions())
         t.act(Action.Call)
         assertEquals(Phase.DRAW, t.phase)
         assertEquals(2 * (Table.ANTE + 400), t.pot)
+    }
+
+    @Test
+    fun betsAndRaisesCanBe25To100() {
+        val t = table(opponents = 1)
+        t.startRound()
+        t.act(Action.Bet(25)) // seat 1
+        assertEquals(25, t.currentBet)
+        t.act(Action.Raise(50)) // seat 0 calls $25 and raises $50
+        assertEquals(75, t.currentBet)
+        assertEquals(Table.STARTING_CHIPS - Table.ANTE - 75, t.human.chips)
+        assertTrue(runCatching { t.act(Action.Raise(60)) }.isFailure)
+        t.act(Action.Call)
+        assertEquals(Phase.DRAW, t.phase)
     }
 
     @Test
@@ -75,7 +89,7 @@ class TableTest {
     fun lastPlayerStandingWinsWithoutShowing() {
         val t = table(opponents = 1)
         t.startRound()
-        t.act(Action.Bet)
+        t.act(Action.Bet())
         t.act(Action.Fold)
         assertEquals(Phase.ROUND_OVER, t.phase)
         val result = assertNotNull(t.lastResult)
@@ -152,7 +166,7 @@ class TableTest {
         val t = table(opponents = 1)
         t.human.chips = 75
         t.startRound()
-        t.act(Action.Bet) // seat 1 bets, human has $50 left
+        t.act(Action.Bet()) // seat 1 bets, human has $50 left
         assertFalse(ActionType.CALL in t.legalActions())
         assertTrue(ActionType.SELL in t.legalActions())
         t.act(Action.Sell(Item.PANTS))
