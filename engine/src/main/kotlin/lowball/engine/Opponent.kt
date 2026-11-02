@@ -7,15 +7,16 @@ import kotlin.random.Random
  *
  * Easy players keep too many high cards and call almost anything.
  * Medium players draw sensibly and bet good hands.
- * Hard players also weigh the size of the pot, notice who stood pat, and sometimes bluff by
- * standing pat on a bad hand (a "snow").
+ * Hard players also weigh the size of the pot and notice who stood pat. They don't bluff: in testing,
+ * standing pat on a bad hand (a "snow") lost them money, so [Style.snowChance] is zero for every level.
+ * Medium and Hard players remember how often each player bets, and call a habitual bettor more often.
  */
 class Opponent(private val difficulty: Difficulty, private val random: Random = Random.Default) {
 
     private val style = when (difficulty) {
         Difficulty.EASY -> Style(patLimit = 11, keepLimit = 10, raiseAt = 0.85, callAt = 0.2, noise = 0.15, snowChance = 0.0)
-        Difficulty.MEDIUM -> Style(patLimit = 9, keepLimit = 8, raiseAt = 0.7, callAt = 0.4, noise = 0.05, snowChance = 0.0)
-        Difficulty.HARD -> Style(patLimit = 9, keepLimit = 8, raiseAt = 0.62, callAt = 0.4, noise = 0.05, snowChance = 0.06)
+        Difficulty.MEDIUM -> Style(patLimit = 9, keepLimit = 8, raiseAt = 0.7, callAt = 0.38, noise = 0.05, snowChance = 0.0)
+        Difficulty.HARD -> Style(patLimit = 9, keepLimit = 8, raiseAt = 0.62, callAt = 0.35, noise = 0.05, snowChance = 0.0)
     }
 
     fun decide(table: Table, seat: Int): Action {
@@ -48,13 +49,25 @@ class Opponent(private val difficulty: Difficulty, private val random: Random = 
             p.snowing = true
         }
 
-        val strength = if (p.snowing) 0.9 else strength(table, p) + (random.nextDouble() * 2 - 1) * style.noise
+        val noise = (random.nextDouble() * 2 - 1) * style.noise
+        val strength = if (p.snowing) 0.9 else strength(table, p) + noise
         val potOdds = if (toCall == 0) 0.0 else toCall.toDouble() / (table.pot + toCall)
+
+        // Only one player needs to call to catch a bluff, so calling doesn't get stricter with more players.
+        // A player who bets far more often than usual is probably bluffing some of the time.
+        val bettor = table.lastAggressor?.let { table.players[it] }
+        val suspicion = when (difficulty) {
+            Difficulty.EASY -> 0.0
+            Difficulty.MEDIUM -> 0.6
+            Difficulty.HARD -> 1.0
+        } * ((bettor?.aggression ?: NORMAL_AGGRESSION) - NORMAL_AGGRESSION)
+        val callStrength = if (p.snowing) 0.9 else strength(table, p, crowded = false) + noise + suspicion.coerceIn(0.0, 0.3)
 
         val wantsToRaise = strength >= style.raiseAt
         val wantsToCall = when (difficulty) {
-            Difficulty.HARD -> strength >= potOdds + 0.1 || strength >= style.callAt
-            else -> strength >= style.callAt
+            Difficulty.EASY -> callStrength >= style.callAt
+            Difficulty.MEDIUM -> callStrength >= minOf(style.callAt, potOdds + 0.08)
+            Difficulty.HARD -> callStrength >= minOf(style.callAt, potOdds + 0.02)
         }
 
         // Short of money for something worth doing: sell the cheapest belonging first.
@@ -82,7 +95,7 @@ class Opponent(private val difficulty: Difficulty, private val random: Random = 
     }
 
     /** A rough 0-to-1 guess at how good this hand is against the players still in. */
-    fun strength(table: Table, p: Player): Double {
+    fun strength(table: Table, p: Player, crowded: Boolean = true): Double {
         val made = HandEvaluator.evaluate(p.cards)
         val beforeDraw = table.phase == Phase.FIRST_BETTING
         var score = if (beforeDraw && !(made.category == Category.NO_PAIR && made.highCard <= patLimit(table))) {
@@ -90,8 +103,11 @@ class Opponent(private val difficulty: Difficulty, private val random: Random = 
         } else {
             madeStrength(made)
         }
-        val others = table.activeSeats.count { it != p.seat }
-        score -= 0.08 * (others - 1)
+        if (crowded) {
+            // Against more players, a hand needs to be better to be worth betting.
+            val others = table.activeSeats.count { it != p.seat }
+            score -= 0.08 * (others - 1)
+        }
 
         if (difficulty == Difficulty.HARD && !beforeDraw) {
             // Someone who stood pat probably has a real hand; someone who drew three probably doesn't.

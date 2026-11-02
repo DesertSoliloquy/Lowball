@@ -63,6 +63,19 @@ class Player(
     /** Computer players only: standing pat on a bad hand this round to bluff (a "snow"). */
     var snowing: Boolean = false
 
+    /** Rounds this player was dealt into, for the computer players' memory of how they bet. */
+    var roundsPlayed: Int = 0
+
+    /** Rounds in which this player bet or raised at least once. */
+    var aggressiveRounds: Int = 0
+
+    /** Has bet or raised during the current round. */
+    var aggressiveThisRound: Boolean = false
+
+    /** How often this player bets or raises, from 0 to 1. Assumes a normal 30% until there's enough to go on. */
+    val aggression: Double
+        get() = if (roundsPlayed < 4) NORMAL_AGGRESSION else aggressiveRounds.toDouble() / roundsPlayed
+
     val inHand: Boolean get() = !eliminated && !folded
 
     val cards: List<Card> get() = hand.map { it.card }
@@ -97,6 +110,8 @@ class Player(
         return returned
     }
 }
+
+const val NORMAL_AGGRESSION = 0.3
 
 object OpponentNames {
     val ALL = listOf(

@@ -16,6 +16,9 @@ data class PlayerSnapshot(
     val eliminated: Boolean,
     val cardsDrawn: Int?,
     val snowing: Boolean,
+    val roundsPlayed: Int = 0,
+    val aggressiveRounds: Int = 0,
+    val aggressiveThisRound: Boolean = false,
 )
 
 /** A whole game frozen at one moment, for Save Game and Resume Game. */
@@ -37,6 +40,7 @@ data class TableSnapshot(
     val pending: List<Int>,
     val queue: List<Int>,
     val deck: List<Card>,
+    val lastAggressor: Int? = null,
 )
 
 /** Turns a game into text for saving to the phone, and back again. */

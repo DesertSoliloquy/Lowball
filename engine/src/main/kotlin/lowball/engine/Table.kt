@@ -90,6 +90,10 @@ class Table(
     var betsMade: Int = 0
         private set
 
+    /** Who made the last bet or raise in this betting round. */
+    var lastAggressor: Int? = null
+        private set
+
     /** What each seat has put in during this betting round. */
     val contributed = IntArray(players.size)
 
@@ -134,6 +138,7 @@ class Table(
             p.folded = p.eliminated
             p.cardsDrawn = null
             p.snowing = false
+            p.aggressiveThisRound = false
         }
         deck.shuffle()
         backImage = images?.pickBack(random)
@@ -204,6 +209,11 @@ class Table(
                 pay(p, amountToCall(seat) + amount)
                 currentBet += amount
                 betsMade++
+                lastAggressor = seat
+                if (!p.aggressiveThisRound) {
+                    p.aggressiveThisRound = true
+                    p.aggressiveRounds++
+                }
                 log(seat, if (action is Action.Bet) "${p.name} bets $$amount" else "${p.name} raises to $$currentBet")
                 pending.clear()
                 pending.addAll(activeSeats - seat)
@@ -231,6 +241,7 @@ class Table(
             PlayerSnapshot(
                 it.seat, it.name, it.isHuman, it.chips, it.items.toList(), it.loans.map { l -> l.copy() },
                 it.hand.toList(), it.folded, it.eliminated, it.cardsDrawn, it.snowing,
+                it.roundsPlayed, it.aggressiveRounds, it.aggressiveThisRound,
             )
         },
         dealer = dealer,
@@ -247,6 +258,7 @@ class Table(
         pending = pending.toList(),
         queue = queue.toList(),
         deck = deck.snapshot(),
+        lastAggressor = lastAggressor,
     )
 
     private fun restore(s: TableSnapshot) {
@@ -264,6 +276,7 @@ class Table(
         pending.addAll(s.pending)
         queue.addAll(s.queue)
         deck.restore(s.deck)
+        lastAggressor = s.lastAggressor
     }
 
     private fun payAnte(p: Player) {
@@ -288,6 +301,7 @@ class Table(
         }
         for (seat in seatsFromLeftOfDealer()) {
             players[seat].hand.addAll(deck.deal(HAND_SIZE).map(::withImage))
+            players[seat].roundsPlayed++
         }
         log(null, "Round $roundNumber: cards are dealt")
         startBetting(Phase.FIRST_BETTING)
@@ -297,6 +311,7 @@ class Table(
         phase = next
         currentBet = 0
         betsMade = 0
+        lastAggressor = null
         contributed.fill(0)
         pending.clear()
         pending.addAll(activeSeats)
@@ -410,6 +425,9 @@ class Table(
                     eliminated = ps.eliminated
                     cardsDrawn = ps.cardsDrawn
                     snowing = ps.snowing
+                    roundsPlayed = ps.roundsPlayed
+                    aggressiveRounds = ps.aggressiveRounds
+                    aggressiveThisRound = ps.aggressiveThisRound
                 }
             }
             return Table(players, s.difficulty, random, images).also { it.restore(s) }
