@@ -6,25 +6,32 @@ import kotlin.random.Random
  * How the computer players think.
  *
  * Easy players keep too many high cards and call almost anything.
- * Medium players draw sensibly and bet good hands.
- * Hard players also weigh the size of the pot and notice who stood pat. They don't bluff: in testing,
- * standing pat on a bad hand (a "snow") lost them money, so [Style.snowChance] is zero for every level.
- * Medium and Hard players remember how often each player bets, and call a habitual bettor more often.
+ * Medium players draw sensibly, bet good hands, weigh the size of the pot and notice who stood pat.
+ * They remember how often each player bets, and call a habitual bettor more often. They don't
+ * bluff: in testing, standing pat on a bad hand (a "snow") lost money, so [Style.snowChance] is zero.
+ *
+ * Hard players follow Chris and Tom Ferguson, "The Endgame in Poker". See [HardBrain].
  */
 class Opponent(private val difficulty: Difficulty, private val random: Random = Random.Default) {
 
     private val style = when (difficulty) {
         Difficulty.EASY -> Style(patLimit = 11, keepLimit = 10, raiseAt = 0.85, callAt = 0.2, noise = 0.15, snowChance = 0.0)
-        Difficulty.MEDIUM -> Style(patLimit = 9, keepLimit = 8, raiseAt = 0.7, callAt = 0.38, noise = 0.05, snowChance = 0.0)
-        Difficulty.HARD -> Style(patLimit = 9, keepLimit = 8, raiseAt = 0.62, callAt = 0.35, noise = 0.05, snowChance = 0.0)
+        Difficulty.MEDIUM, Difficulty.HARD ->
+            Style(patLimit = 9, keepLimit = 8, raiseAt = 0.62, callAt = 0.35, noise = 0.05, snowChance = 0.0)
     }
+
+    /** Easy keeps its loose habits; Medium and Hard draw the same careful way. */
+    private val careful = difficulty != Difficulty.EASY
+
+    private val hard = HardBrain(random)
 
     fun decide(table: Table, seat: Int): Action {
         val p = table.players[seat]
         return when (table.phase) {
             Phase.ANTE -> p.items.lastOrNull()?.let { Action.Sell(it) } ?: Action.SitOut
             Phase.DRAW -> Action.Draw(chooseDiscards(p, table))
-            Phase.FIRST_BETTING, Phase.SECOND_BETTING -> chooseBet(table, p)
+            Phase.FIRST_BETTING, Phase.SECOND_BETTING ->
+                if (difficulty == Difficulty.HARD) hard.chooseBet(table, p, this) else chooseBet(table, p)
             Phase.ROUND_OVER, Phase.GAME_OVER -> error("Nothing to decide during ${table.phase}")
         }
     }
@@ -35,7 +42,7 @@ class Opponent(private val difficulty: Difficulty, private val random: Random = 
         val made = HandEvaluator.evaluate(p.cards)
         if (made.category == Category.NO_PAIR && made.highCard <= patLimit(table)) return emptySet()
 
-        val keepLimit = if (difficulty == Difficulty.HARD && sevenDraw(p)) 7 else style.keepLimit
+        val keepLimit = if (careful && sevenDraw(p)) 7 else style.keepLimit
         return discardsFor(p.cards, keepLimit)
     }
 
@@ -58,16 +65,14 @@ class Opponent(private val difficulty: Difficulty, private val random: Random = 
         val bettor = table.lastAggressor?.let { table.players[it] }
         val suspicion = when (difficulty) {
             Difficulty.EASY -> 0.0
-            Difficulty.MEDIUM -> 0.6
-            Difficulty.HARD -> 1.0
+            Difficulty.MEDIUM, Difficulty.HARD -> 1.0
         } * ((bettor?.aggression ?: NORMAL_AGGRESSION) - NORMAL_AGGRESSION)
         val callStrength = if (p.snowing) 0.9 else strength(table, p, crowded = false) + noise + suspicion.coerceIn(0.0, 0.3)
 
         val wantsToRaise = strength >= style.raiseAt
         val wantsToCall = when (difficulty) {
             Difficulty.EASY -> callStrength >= style.callAt
-            Difficulty.MEDIUM -> callStrength >= minOf(style.callAt, potOdds + 0.08)
-            Difficulty.HARD -> callStrength >= minOf(style.callAt, potOdds + 0.02)
+            Difficulty.MEDIUM, Difficulty.HARD -> callStrength >= minOf(style.callAt, potOdds + 0.02)
         }
 
         // Short of money for something worth doing: sell the cheapest belonging first.
@@ -109,7 +114,7 @@ class Opponent(private val difficulty: Difficulty, private val random: Random = 
             score -= 0.08 * (others - 1)
         }
 
-        if (difficulty == Difficulty.HARD && !beforeDraw) {
+        if (careful && !beforeDraw) {
             // Someone who stood pat probably has a real hand; someone who drew three probably doesn't.
             val patOpponents = table.activeSeats.count { it != p.seat && table.players[it].cardsDrawn == 0 }
             val bigDrawers = table.activeSeats.count { it != p.seat && (table.players[it].cardsDrawn ?: 0) >= 3 }
@@ -118,10 +123,10 @@ class Opponent(private val difficulty: Difficulty, private val random: Random = 
         return score.coerceIn(0.0, 1.0)
     }
 
-    private fun patLimit(table: Table?): Int {
-        // Heads-up, a hard player will stand pat on a ten.
+    internal fun patLimit(table: Table?): Int {
+        // Heads-up, a careful player will stand pat on a ten.
         val headsUp = table != null && table.activeSeats.size == 2
-        return if (difficulty == Difficulty.HARD && headsUp) 10 else style.patLimit
+        return if (careful && headsUp) 10 else style.patLimit
     }
 
     /** Four different cards seven or lower: draw one to them rather than keep an eight. */

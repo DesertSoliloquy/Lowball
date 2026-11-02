@@ -172,6 +172,11 @@ private val HOW_TO = listOf(
         "The house will buy your belongings, from your socks to your gold watch. Each sale is a loan: " +
         "whenever you win a pot, 10% goes toward your oldest loan, and the item comes back once it's paid off. " +
         "Tap Vault to see what the house is holding.",
+    "Difficulty" to
+        "Easy players call too much and keep bad cards. Medium players are careful and remember who bets a lot. " +
+        "Hard players follow \"The Endgame in Poker\" by Chris and Tom Ferguson: they always bet \$100, so the size " +
+        "of a bet gives nothing away, they bluff now and then in a measured way, and they call often enough " +
+        "that bluffing them rarely pays.",
     "Tips" to
         "Be patient and fold weak hands. Drawing three cards rarely works. " +
         "A player who stands pat probably has a good hand, unless they're bluffing.",

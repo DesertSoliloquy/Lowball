@@ -30,9 +30,11 @@ class SkillTest {
     fun harderOpponentsWinMoreMoney() {
         val hardVsEasy = netPerRound(Difficulty.HARD, Difficulty.EASY, 11)
         val mediumVsEasy = netPerRound(Difficulty.MEDIUM, Difficulty.EASY, 12)
-        println("Hard vs Easy: $hardVsEasy per round, Medium vs Easy: $mediumVsEasy per round")
+        val hardVsMedium = netPerRound(Difficulty.HARD, Difficulty.MEDIUM, 13)
+        println("Hard vs Easy: $hardVsEasy, Medium vs Easy: $mediumVsEasy, Hard vs Medium: $hardVsMedium per round")
         assertTrue(hardVsEasy > 0, "Hard should beat Easy")
         assertTrue(mediumVsEasy > 0, "Medium should beat Easy")
+        assertTrue(hardVsMedium > 0, "Hard should beat Medium")
     }
 
     /** A player who bets and raises the maximum every time, whatever cards they hold. */
