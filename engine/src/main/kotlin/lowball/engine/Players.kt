@@ -78,6 +78,9 @@ class Player(
 
     val inHand: Boolean get() = !eliminated && !folded
 
+    /** A sentence about this player with the right verb: "You win" but "Whiskey Pete wins". */
+    fun says(youVerb: String, theyVerb: String): String = if (isHuman) "You $youVerb" else "$name $theyVerb"
+
     val cards: List<Card> get() = hand.map { it.card }
 
     /** Sells [item] to the house, which holds it as a loan. */

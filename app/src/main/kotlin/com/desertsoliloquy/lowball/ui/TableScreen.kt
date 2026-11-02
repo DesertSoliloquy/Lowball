@@ -71,8 +71,16 @@ fun TableScreen(game: GameViewModel, modifier: Modifier) {
 
     BoxWithConstraints(modifier.background(colors.felt)) {
         // Cards grow with the screen: five of yours fill the width, opponents' take a bit over half.
-        val handCard = ((maxWidth - 56.dp) / 5).coerceAtMost(200.dp)
-        val opponentCard = ((maxWidth * 0.6f - 24.dp) / 5).coerceAtMost(120.dp)
+        // They also shrink when the screen is short or there are three opponents, so everything fits.
+        val opponents = view.players.count { !it.isHuman }
+        val cardShape = 5f / 7f
+        val handCard = minOf((maxWidth - 56.dp) / 5, maxHeight * 0.2f * cardShape, 200.dp)
+        val opponentCard = minOf(
+            (maxWidth * 0.6f - 24.dp) / 5,
+            (maxHeight * 0.33f / opponents - 20.dp) * cardShape,
+            120.dp,
+        )
+        val scroll = rememberScrollState()
         Column(Modifier.fillMaxSize()) {
             TopBar(
                 view = view,
@@ -83,8 +91,9 @@ fun TableScreen(game: GameViewModel, modifier: Modifier) {
                 onQuit = { confirmQuit = true },
             )
 
+            if (scroll.canScrollBackward) ScrollHint("▲  Scroll up for more")
             Column(
-                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+                Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 for (p in view.players.filter { !it.isHuman }) {
@@ -92,6 +101,7 @@ fun TableScreen(game: GameViewModel, modifier: Modifier) {
                 }
                 PotAndNews(view, game.notice)
             }
+            if (scroll.canScrollForward) ScrollHint("▼  Scroll down for more")
 
             HumanArea(
                 view = view,
@@ -241,6 +251,19 @@ private fun status(p: PlayerSnapshot, view: TableSnapshot): String = when {
     else -> ""
 }
 
+/** A bright strip telling the player there's more to see by scrolling. */
+@Composable
+private fun ScrollHint(text: String) {
+    val colors = LocalTableColors.current
+    Text(
+        text,
+        color = Color.Black,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().background(colors.highlight).padding(vertical = 4.dp),
+    )
+}
+
 @Composable
 private fun PotAndNews(view: TableSnapshot, notice: String?) {
     val colors = LocalTableColors.current
@@ -257,7 +280,7 @@ private fun PotAndNews(view: TableSnapshot, notice: String?) {
         }
         notice?.let { Text(it, color = colors.highlight) }
         Spacer(Modifier.height(4.dp))
-        for (event in view.events.takeLast(5)) {
+        for (event in view.events.takeLast(4)) {
             Text(event.text, color = colors.feltText, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
         }
     }
@@ -405,14 +428,17 @@ private fun ActionBar(
     }
 }
 
+/** "win" for you, "wins" for anyone else. */
+private fun wins(view: TableSnapshot, seat: Int) = if (view.players[seat].isHuman) "win" else "wins"
+
 private fun resultText(view: TableSnapshot): String {
     val result = view.lastResult ?: return ""
     val names = result.winners.map { view.players[it].name }
     val lines = mutableListOf<String>()
     lines += when {
         names.isEmpty() -> "Nobody played this round."
-        names.size == 1 && result.uncontested -> "${names[0]} wins ${money(result.pot)}. Everyone else folded."
-        names.size == 1 -> "${names[0]} wins ${money(result.pot)} with ${result.shownHands[result.winners[0]]!!.describe()}."
+        names.size == 1 && result.uncontested -> "${names[0]} ${wins(view, result.winners[0])} ${money(result.pot)}. Everyone else folded."
+        names.size == 1 -> "${names[0]} ${wins(view, result.winners[0])} ${money(result.pot)} with ${result.shownHands[result.winners[0]]!!.describe()}."
         else -> "${names.joinToString(" and ")} split ${money(result.pot)}."
     }
     for ((seat, paid) in result.loanPayments) {

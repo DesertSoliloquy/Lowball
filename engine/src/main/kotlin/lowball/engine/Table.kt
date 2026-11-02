@@ -119,7 +119,7 @@ class Table(
         for (p in players) {
             if (!p.eliminated && p.chips < ANTE && p.items.isEmpty()) {
                 p.eliminated = true
-                log(p.seat, "${p.name} is out of money and has nothing left to sell")
+                log(p.seat, p.says("are out of money and have nothing left to sell", "is out of money and has nothing left to sell"))
             }
         }
         if (human.eliminated || players.none { !it.isHuman && !it.eliminated }) {
@@ -183,7 +183,7 @@ class Table(
         when (action) {
             is Action.Sell -> {
                 p.sell(action.item)
-                log(seat, "${p.name} sells ${action.item.displayName} to the house for $${action.item.price}")
+                log(seat, p.says("sell", "sells") + " ${action.item.displayName} to the house for $${action.item.price}")
                 if (phase == Phase.ANTE && p.chips >= ANTE) {
                     payAnte(p)
                     queue.removeFirst()
@@ -192,13 +192,13 @@ class Table(
             }
             Action.SitOut -> {
                 p.folded = true
-                log(seat, "${p.name} sits out this round")
+                log(seat, p.says("sit out", "sits out") + " this round")
                 queue.removeFirst()
                 advanceAnte()
             }
             is Action.Draw -> draw(p, action.discards)
             Action.Check -> {
-                log(seat, "${p.name} checks")
+                log(seat, p.says("check", "checks"))
                 pending.remove(seat)
                 afterBettingAction(seat)
             }
@@ -214,20 +214,20 @@ class Table(
                     p.aggressiveThisRound = true
                     p.aggressiveRounds++
                 }
-                log(seat, if (action is Action.Bet) "${p.name} bets $$amount" else "${p.name} raises to $$currentBet")
+                log(seat, if (action is Action.Bet) p.says("bet", "bets") + " $$amount" else p.says("raise", "raises") + " to $$currentBet")
                 pending.clear()
                 pending.addAll(activeSeats - seat)
                 afterBettingAction(seat)
             }
             Action.Call -> {
                 pay(p, amountToCall(seat))
-                log(seat, "${p.name} calls")
+                log(seat, p.says("call", "calls"))
                 pending.remove(seat)
                 afterBettingAction(seat)
             }
             Action.Fold -> {
                 p.folded = true
-                log(seat, "${p.name} folds")
+                log(seat, p.says("fold", "folds"))
                 pending.remove(seat)
                 afterBettingAction(seat)
             }
@@ -342,7 +342,7 @@ class Table(
         require(discards.all { it in 0 until HAND_SIZE }) { "Card positions are 0 to 4" }
         for (index in discards) p.hand[index] = withImage(deck.deal())
         p.cardsDrawn = discards.size
-        log(p.seat, if (discards.isEmpty()) "${p.name} stands pat" else "${p.name} draws ${discards.size}")
+        log(p.seat, if (discards.isEmpty()) p.says("stand pat", "stands pat") else p.says("draw", "draws") + " ${discards.size}")
         queue.removeFirst()
         if (queue.isNotEmpty()) toAct = queue.first() else startBetting(Phase.SECOND_BETTING)
     }
@@ -379,7 +379,7 @@ class Table(
                 if (back.isNotEmpty()) returned[seat] = back
             }
             val how = shownHands[seat]?.let { " with ${it.describe()}" } ?: ""
-            log(seat, "${p.name} wins $$share$how")
+            log(seat, p.says("win", "wins") + " $$share$how")
         }
         lastResult = RoundResult(pot, winners, shares, shownHands, payments, returned)
         pot = 0

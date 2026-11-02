@@ -99,6 +99,19 @@ class TableTest {
     }
 
     @Test
+    fun messagesAboutYouUseTheRightVerb() {
+        val t = table(opponents = 1)
+        t.startRound()
+        t.act(Action.Check) // seat 1
+        t.act(Action.Bet(50)) // you
+        t.act(Action.Fold) // seat 1
+        val texts = t.events.map { it.text }
+        assertTrue("You bet $50" in texts, texts.toString())
+        assertTrue(texts.last().startsWith("You win $"), texts.toString())
+        assertTrue(texts.none { it.startsWith("You wins") || it.startsWith("You bets") })
+    }
+
+    @Test
     fun showdownPaysTheLowestHand() {
         val t = table(opponents = 2, seed = 7)
         t.startRound()
